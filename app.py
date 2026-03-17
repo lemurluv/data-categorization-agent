@@ -92,42 +92,73 @@ def parse_spss_syntax(syntax_text):
         newv = rb.group(3)
         
         bins = []
-        # (LO THRU HI = code)
-        ranges = re.finditer(r"\((.+?)\s+THRU\s+(.+?)\s+=\s+(\d+)\)", cnt, re.I)
-        for r in ranges:
-            lo, hi, code = r.group(1), r.group(2), int(r.group(3))
-            bin_cfg = {
-                'valL': None if lo == "LOWEST" else float(lo),
-                'opL': '선택안함' if lo == "LOWEST" else '이상',
-                'valR': None if hi == "HIGHEST" else float(hi),
-                'opR': '선택안함' if hi == "HIGHEST" else '이하'
-            }
-            bins.append(bin_cfg)
+        missing_policy = 'keep'
+        missing_code = 9
+        
+        chunks = re.finditer(r"\(([^)]+)\)", cnt)
+        for chunk_match in chunks:
+            chunk = chunk_match.group(1).strip()
+            if "SYSMIS" in chunk.upper():
+                m = re.search(r"=\s*(\d+)", chunk)
+                if m:
+                    missing_policy = 'recode'
+                    missing_code = int(m.group(1))
+            elif "ELSE" in chunk.upper():
+                m = re.search(r"=\s*(\d+)", chunk)
+                if m:
+                    bin_cfg = {
+                        'valL': None, 'opL': '선택안함',
+                        'valR': None, 'opR': '선택안함'
+                    }
+                    bins.append(bin_cfg)
+            else:
+                m = re.search(r"(.+?)\s+THRU\s+(.+?)\s*=\s*(\d+)", chunk, re.I)
+                if m:
+                    lo, hi, code = m.group(1).strip(), m.group(2).strip(), int(m.group(3))
+                    
+                    lo_val = None
+                    opL = '선택안함'
+                    if lo.upper() != "LOWEST":
+                        lo_val = float(lo)
+                        opL = '이상'
+                        
+                    hi_val = None
+                    opR = '선택안함'
+                    if hi.upper() != "HIGHEST":
+                        hi_val = float(hi)
+                        opR = '이하'
+                        
+                    bin_cfg = {
+                        'valL': lo_val, 'opL': opL,
+                        'valR': hi_val, 'opR': opR
+                    }
+                    bins.append(bin_cfg)
             
         rules[orig] = {
             'new_var': newv,
             'label': orig,
             'bins': bins,
             'value_labels': {},
-            'missing_policy': 'keep',
+            'missing_policy': missing_policy,
+            'missing_code': missing_code,
             'continuous': True
         }
 
     # Labels
-    vlabels = re.finditer(r"VARIABLE LABELS\s+(\w+)\s+'(.+?)'", syntax_text, re.I)
+    vlabels = re.finditer(r"VARIABLE LABELS\s+(\w+)\s+'(.*?)'", syntax_text, re.I)
     for vl in vlabels:
-        tv, lab = vl.group(1), vl.group(2).replace("_범주", "")
+        tv, lab = vl.group(1), vl.group(2).replace("_범주", "").replace("''", "'")
         for r in rules:
             if rules[r]['new_var'] == tv: rules[r]['label'] = lab
 
     # Val Labels
-    vallabs = re.finditer(r"VALUE LABELS\s+/(.+?)\s+(.+?)\s*\.", syntax_text, re.S | re.I)
+    vallabs = re.finditer(r"VALUE LABELS\s+/([^\s]+)\s+(.*?)\n\s*\.\s*(?:\n|(?=EXECUTE))", syntax_text, re.S | re.I)
     for f in vallabs:
         tv = f.group(1).strip()
         cnt = f.group(2)
         lmap = {}
-        for im in re.finditer(r"(\d+)\s+'(.+?)'", cnt):
-            lmap[str(im.group(1))] = im.group(2) # JSON keys are strings
+        for im in re.finditer(r"(\d+)\s+'(.*?)'", cnt):
+            lmap[int(im.group(1))] = im.group(2).replace("''", "'")
         for r in rules:
             if rules[r]['new_var'] == tv: rules[r]['value_labels'] = lmap
             
