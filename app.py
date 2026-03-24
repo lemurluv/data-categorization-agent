@@ -18,7 +18,7 @@ import copy
 # 0. Configuration & Constants
 # ==========================================
 st.set_page_config(page_title="Data Categorization Agent", layout="wide")
-CAT_ALGO_VERSION = 4 # Increment this to trigger automatic rule reset
+CAT_ALGO_VERSION = 5 # Increment this to trigger automatic rule reset
 
 PRESETS_FILE = "cat_presets.json"
 AUDIT_LOG_FILE = "cat_audit_log.json"
@@ -407,6 +407,7 @@ def suggest_bins(series, continuous, k=3, label=None, var_type_val=None, predefi
             'k': len(bins),
             'bins': bins,
             'value_labels': v_labels,
+            'has_custom_labels': True,
             'spss_notes': {
                 'epsilon_used': continuous,
                 'epsilon_value': calculate_epsilon(series) if continuous else 1.0
@@ -533,6 +534,7 @@ def suggest_bins(series, continuous, k=3, label=None, var_type_val=None, predefi
         "k": len(bins),
         "bins": bins,
         "value_labels": v_labels,
+        "has_custom_labels": False,
         "spss_notes": {
             "epsilon_used": continuous,
             "epsilon_value": calculate_epsilon(series) if continuous else 1.0
@@ -1399,27 +1401,34 @@ def main():
                                                         st.rerun()
                                             
                                             # Compute new default label (Symbolic Notation -> Reverted to Korean + Discrete Optimization)
-                                            is_d = not rule.get('continuous', True)
-                                            new_parts = []
-                                            if rule['bins'][i]['opL'] == "이상": 
-                                                new_parts.append(f"{rule['bins'][i]['valL']} 이상")
-                                            elif rule['bins'][i]['opL'] == "초과":
-                                                if is_d: new_parts.append(f"{rule['bins'][i]['valL'] + 1.0} 이상")
-                                                else: new_parts.append(f"{rule['bins'][i]['valL']} 초과")
-                                            
-                                            if rule['bins'][i]['opR'] == "이하": 
-                                                new_parts.append(f"{rule['bins'][i]['valR']} 이하")
-                                            elif rule['bins'][i]['opR'] == "미만":
-                                                if is_d: new_parts.append(f"{rule['bins'][i]['valR'] - 1.0} 이하")
-                                                else: new_parts.append(f"{rule['bins'][i]['valR']} 미만")
-                                            
-                                            new_default_lab = " ".join(new_parts) if new_parts else "전체"
-                                            rule['value_labels'][i+1] = new_default_lab
+                                            if not rule.get('has_custom_labels', False):
+                                                is_d = not rule.get('continuous', True)
+                                                new_parts = []
+                                                if rule['bins'][i]['opL'] == "이상": 
+                                                    new_parts.append(f"{rule['bins'][i]['valL']} 이상")
+                                                elif rule['bins'][i]['opL'] == "초과":
+                                                    if is_d: new_parts.append(f"{rule['bins'][i]['valL'] + 1.0} 이상")
+                                                    else: new_parts.append(f"{rule['bins'][i]['valL']} 초과")
+                                                
+                                                if rule['bins'][i]['opR'] == "이하": 
+                                                    new_parts.append(f"{rule['bins'][i]['valR']} 이하")
+                                                elif rule['bins'][i]['opR'] == "미만":
+                                                    if is_d: new_parts.append(f"{rule['bins'][i]['valR'] - 1.0} 이하")
+                                                    else: new_parts.append(f"{rule['bins'][i]['valR']} 미만")
+                                                
+                                                new_default_lab = " ".join(new_parts) if new_parts else "전체"
+                                                rule['value_labels'][i+1] = new_default_lab
                                             
                                         # Recalculate value labels indexing to be clean 1...K
                                         new_v_labels = {}
                                         is_d_global = not rule.get('continuous', True)
                                         for idx, b in enumerate(rule['bins']):
+                                            if rule.get('has_custom_labels', False):
+                                                old_lab = rule['value_labels'].get(idx+1, "")
+                                                if old_lab:
+                                                    new_v_labels[idx+1] = old_lab
+                                                    continue
+                                            
                                             lp = []
                                             if b['opL'] == "이상": lp.append(f"{b['valL']} 이상")
                                             elif b['opL'] == "초과":
