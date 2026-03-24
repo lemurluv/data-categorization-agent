@@ -18,7 +18,7 @@ import copy
 # 0. Configuration & Constants
 # ==========================================
 st.set_page_config(page_title="Data Categorization Agent", layout="wide")
-CAT_ALGO_VERSION = 3 # Increment this to trigger automatic rule reset
+CAT_ALGO_VERSION = 4 # Increment this to trigger automatic rule reset
 
 PRESETS_FILE = "cat_presets.json"
 AUDIT_LOG_FILE = "cat_audit_log.json"
@@ -202,10 +202,12 @@ def parse_column_guide_labels(xl_file):
                 if v not in labels_dict:
                     labels_dict[v] = {}
         elif current_vars:
-            m = re.match(r"^(\d+)\s+['\"](.*?)['\"]", val)
+            m = re.match(r"^(\d+)\s*(.*?)$", val)
             if m:
                 code = int(m.group(1))
                 label_str = m.group(2).strip()
+                if len(label_str) >= 2 and label_str[0] in ("'", '"') and label_str[-1] == label_str[0]:
+                    label_str = label_str[1:-1]
                 for v in current_vars:
                     labels_dict[v][code] = label_str
 
