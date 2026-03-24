@@ -272,11 +272,18 @@ def suggest_bins(series, continuous, k=3, label=None, var_type_val=None):
     if 6 <= n <= 50:
         k = min(k, 4)
 
+    is_likert = False
+    if isinstance(var_type_val, str) and "리커트" in var_type_val:
+        is_likert = True
+
     # -----------------------------------
     # 0. 저빈도(Low Cardinality) 분할 - 소수점 생성을 방지하기 위한 특별 예외처리
     # -----------------------------------
-    if len(unique_vals) <= 5:
-        target_k = min(len(unique_vals), 3) # 고유값이 3개 이하면 그 수만큼, 4~5개면 3개로 범주화
+    if len(unique_vals) <= 5 or is_likert:
+        if is_likert:
+            target_k = len(unique_vals)
+        else:
+            target_k = min(len(unique_vals), 3) # 고유값이 3개 이하면 그 수만큼, 4~5개면 3개로 범주화
         
         counts = valid_data.value_counts(normalize=True).sort_index()
         groups = [[val] for val in counts.index]
